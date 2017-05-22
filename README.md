@@ -1,2 +1,2 @@
 # easy_uci
-OpenWRT UCI C API Warp
+OpenWRT UCI C API Wrap
