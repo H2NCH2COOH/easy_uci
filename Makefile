@@ -16,7 +16,7 @@ define Package/$(PKG_NAME)
 endef
 
 define Package/$(PKG_NAME)/description
-    An warp around OpenWRT's UCI C API
+    An wrap around OpenWRT UCI C API
 endef
 
 define Build/Prepare
