@@ -1,8 +1,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libeasy_uci
-PKG_VERSION:=0.1.0
-PKG_RELEASE:=20160225
+PKG_VERSION:=0.2.0
+PKG_RELEASE:=20170601
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 
@@ -16,7 +16,7 @@ define Package/$(PKG_NAME)
 endef
 
 define Package/$(PKG_NAME)/description
-    An wrap around OpenWRT UCI C API
+    An warp around OpenWRT's UCI C API
 endef
 
 define Build/Prepare

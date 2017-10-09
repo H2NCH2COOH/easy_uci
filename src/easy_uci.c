@@ -8,16 +8,33 @@
 
 #include "easy_uci.h"
 
-static struct uci_context* ctx=NULL;
-
 #define ERR_MSG_BUFF_SIZE 256
 
-#define LogE(s) fprintf(stderr,"[%s] %s\n",__func__,s)
+#define LogE(s) __logE(__func__,s)
 
 #define uci_foreach_element_reverse(_list, _ptr) \
-	for(_ptr = list_to_element((_list)->prev); \
-		&_ptr->list != (_list); \
-		_ptr = list_to_element(_ptr->list.prev))
+    for(_ptr = list_to_element((_list)->prev); \
+        &_ptr->list != (_list); \
+        _ptr = list_to_element(_ptr->list.prev))
+
+static void (*ext_logger)(const char*)=NULL;
+
+void easy_uci_register_error_logger(void(*logger)(const char*))
+{
+    ext_logger=logger;
+}
+
+static void __logE(const char* func,const char* msg)
+{
+    if(ext_logger!=NULL)
+    {
+        ext_logger(msg);
+    }
+    else
+    {
+        fprintf(stderr,"[%s] %s\n",func,msg);
+    }
+}
 
 void easy_uci_free_list(easy_uci_list* list_p)
 {
@@ -35,20 +52,18 @@ void easy_uci_free_list(easy_uci_list* list_p)
 int easy_uci_get_section_type(const char* package,const char* section,char* buff,size_t size)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -68,6 +83,7 @@ int easy_uci_get_section_type(const char* package,const char* section,char* buff
     strncpy(buff,sec->type,size);
 
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -77,9 +93,11 @@ error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
     LogE(err_str);
     free(err_str);
+    uci_free_context(ctx);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -87,21 +105,19 @@ error_msg:
 int easy_uci_add_section(const char* package,const char* type,const char* name)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_ptr ptr;
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -154,9 +170,10 @@ int easy_uci_add_section(const char* package,const char* type,const char* name)
         }
     }
 
-    uci_save(ctx,pkg);
+    //uci_save(ctx,pkg);
     uci_commit(ctx,&pkg,false);
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -164,11 +181,13 @@ error_uci:
     uci_unload(ctx,pkg);
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -176,21 +195,19 @@ error_msg:
 int easy_uci_delete_section(const char* package,const char* section)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_ptr ptr;
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -216,11 +233,12 @@ int easy_uci_delete_section(const char* package,const char* section)
             goto error_uci;
         }
 
-        uci_save(ctx,pkg);
+        //uci_save(ctx,pkg);
         uci_commit(ctx,&pkg,false);
     }
 
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -228,11 +246,13 @@ error_uci:
     uci_unload(ctx,pkg);
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 /*error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;*/
 }
@@ -240,6 +260,7 @@ error_pkg:
 int easy_uci_get_all_section_of_type(const char* package,const char* type,easy_uci_list* list_p)
 {
     int ret,i;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_section* list[1024];
@@ -249,15 +270,12 @@ int easy_uci_get_all_section_of_type(const char* package,const char* type,easy_u
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -310,6 +328,7 @@ int easy_uci_get_all_section_of_type(const char* package,const char* type,easy_u
     }
 
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -317,11 +336,13 @@ int easy_uci_get_all_section_of_type(const char* package,const char* type,easy_u
     uci_unload(ctx,pkg);*/
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -329,6 +350,7 @@ error_msg:
 int easy_uci_get_nth_section_of_type(const char* package,const char* type,int n,char** name_p)
 {
     int ret,i;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_element* e;
@@ -336,25 +358,22 @@ int easy_uci_get_nth_section_of_type(const char* package,const char* type,int n,
     char* name;
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
-    
+
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
-    
+
     ret=uci_load(ctx,package,&pkg);
     if(ret!=0||pkg==NULL)
     {
         snprintf(err_msg,sizeof(err_msg),"Failed to load package: '%s' with error",package);
         goto error_pkg;
     }
-    
+
     i=n;
     if(i>=0)
     {
@@ -394,33 +413,36 @@ int easy_uci_get_nth_section_of_type(const char* package,const char* type,int n,
             }
         }
     }
-    
+
     if(!found)
     {
         snprintf(err_msg,sizeof(err_msg),"Can't find section of type '%s' at index %d",type,n);
         goto error_msg;
     }
-    
+
     name=strdup(sec->e.name);
     if(name==NULL)
     {
         snprintf(err_msg,sizeof(err_msg),"Failed malloc at %s:%d",__FILE__,__LINE__);
         goto error_msg;
     }
-    
+
     *name_p=name;
-    
+
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -428,21 +450,19 @@ error_msg:
 int easy_uci_get_option_string(const char* package,const char* section,const char* option,char* buff,size_t size)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_option*  opt;
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -475,6 +495,7 @@ int easy_uci_get_option_string(const char* package,const char* section,const cha
     strncpy(buff,opt->v.string,size);
 
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -482,11 +503,13 @@ int easy_uci_get_option_string(const char* package,const char* section,const cha
     uci_unload(ctx,pkg);*/
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -494,6 +517,7 @@ error_msg:
 int easy_uci_set_option_string(const char* package,const char* section,const char* option,const char* value)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_ptr ptr;
@@ -505,15 +529,12 @@ int easy_uci_set_option_string(const char* package,const char* section,const cha
         return -1;
     }
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -547,9 +568,10 @@ int easy_uci_set_option_string(const char* package,const char* section,const cha
         goto error_uci;
     }
 
-    uci_save(ctx,pkg);
+    //uci_save(ctx,pkg);
     uci_commit(ctx,&pkg,false);
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -557,11 +579,13 @@ error_uci:
     uci_unload(ctx,pkg);
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -569,6 +593,7 @@ error_msg:
 int easy_uci_get_option_list(const char* package,const char* section,const char* option,easy_uci_list* list_p)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_option*  opt;
@@ -578,15 +603,12 @@ int easy_uci_get_option_list(const char* package,const char* section,const char*
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -620,7 +642,7 @@ int easy_uci_get_option_list(const char* package,const char* section,const char*
     {
         ++count;
     }
-    
+
     if(count>0)
     {
         ss=malloc(sizeof(char*)*count);
@@ -629,7 +651,7 @@ int easy_uci_get_option_list(const char* package,const char* section,const char*
             snprintf(err_msg,sizeof(err_msg),"Failed malloc at %s:%d",__FILE__,__LINE__);
             goto error_msg;
         }
-        
+
         count=0;
         uci_foreach_element(&opt->v.list,e)
         {
@@ -646,7 +668,7 @@ int easy_uci_get_option_list(const char* package,const char* section,const char*
             }
             ++count;
         }
-        
+
         list_p->list=(const char**)ss;
         list_p->len=count;
     }
@@ -657,6 +679,7 @@ int easy_uci_get_option_list(const char* package,const char* section,const char*
     }
 
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -664,11 +687,13 @@ int easy_uci_get_option_list(const char* package,const char* section,const char*
     uci_unload(ctx,pkg);*/
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -677,6 +702,7 @@ int easy_uci_set_option_list(const char* package,const char* section,const char*
 {
     int ret;
     size_t i;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_option*  opt;
@@ -689,15 +715,12 @@ int easy_uci_set_option_list(const char* package,const char* section,const char*
         return -1;
     }
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -724,7 +747,7 @@ int easy_uci_set_option_list(const char* package,const char* section,const char*
         ptr.p=pkg;
         ptr.s=sec;
         ptr.o=opt;
-        
+
         ret=uci_delete(ctx,&ptr);
         if(ret!=0)
         {
@@ -732,14 +755,14 @@ int easy_uci_set_option_list(const char* package,const char* section,const char*
             goto error_uci;
         }
     }
-    
+
     memset(&ptr,0,sizeof(struct uci_ptr));
     ptr.package=package;
     ptr.section=section;
     ptr.option=option;
     ptr.p=pkg;
     ptr.s=sec;
-    
+
     for(i=0;i<list_p->len;++i)
     {
         ptr.value=list_p->list[i];
@@ -751,9 +774,10 @@ int easy_uci_set_option_list(const char* package,const char* section,const char*
         }
     }
 
-    uci_save(ctx,pkg);
+    //uci_save(ctx,pkg);
     uci_commit(ctx,&pkg,false);
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -761,11 +785,13 @@ error_uci:
     uci_unload(ctx,pkg);
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -773,6 +799,7 @@ error_msg:
 int easy_uci_append_to_option_list(const char* package,const char* section,const char* option,const char* value)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_section* sec;
     struct uci_ptr ptr;
@@ -784,15 +811,12 @@ int easy_uci_append_to_option_list(const char* package,const char* section,const
         return -1;
     }
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -823,9 +847,10 @@ int easy_uci_append_to_option_list(const char* package,const char* section,const
         goto error_uci;
     }
 
-    uci_save(ctx,pkg);
+    //uci_save(ctx,pkg);
     uci_commit(ctx,&pkg,false);
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -833,11 +858,13 @@ error_uci:
     uci_unload(ctx,pkg);
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;
 }
@@ -845,20 +872,18 @@ error_msg:
 int easy_uci_delete_option(const char* package,const char* section,const char* option)
 {
     int ret;
+    struct uci_context* ctx=NULL;
     struct uci_package* pkg;
     struct uci_ptr ptr;
     char* err_str=NULL;
     char err_msg[ERR_MSG_BUFF_SIZE];
 
+    ctx=uci_alloc_context();
     if(ctx==NULL)
     {
-        ctx=uci_alloc_context();
-        if(ctx==NULL)
-        {
-            snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
-            LogE(err_msg);
-            return -1;
-        }
+        snprintf(err_msg,sizeof(err_msg),"Failed to alloc uci context");
+        LogE(err_msg);
+        return -1;
     }
 
     ret=uci_load(ctx,package,&pkg);
@@ -867,18 +892,21 @@ int easy_uci_delete_option(const char* package,const char* section,const char* o
         snprintf(err_msg,sizeof(err_msg),"Failed to load package: '%s' with error",package);
         goto error_pkg;
     }
-    
+
     memset(&ptr,0,sizeof(struct uci_ptr));
 
     ptr.package=package;
     ptr.section=section;
     ptr.option=option;
 
+    ptr.p=pkg;
+
     ret=uci_delete(ctx,&ptr);
 
-    uci_save(ctx,pkg);
+    //uci_save(ctx,pkg);
     uci_commit(ctx,&pkg,false);
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
 
     return 0;
 
@@ -886,11 +914,13 @@ int easy_uci_delete_option(const char* package,const char* section,const char* o
     uci_unload(ctx,pkg);*/
 error_pkg:
     uci_get_errorstr(ctx,&err_str,err_msg);
+    uci_free_context(ctx);
     LogE(err_str);
     free(err_str);
     return -1;
 /*error_msg:
     uci_unload(ctx,pkg);
+    uci_free_context(ctx);
     LogE(err_msg);
     return -1;*/
 }

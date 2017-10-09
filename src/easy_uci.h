@@ -11,6 +11,12 @@ typedef struct
 } easy_uci_list;
 
 /**
+ * easy_uci_register_error_logger: register a function that will be called when error occurred
+ * @param logger: the pointer to a logger function
+ */
+void easy_uci_register_error_logger(void(*logger)(const char*));
+
+/**
  * easy_uci_free_list: free an easy_uci_list filled by some easy_uci functions
  * @param list_p: the pointer to the easy_uci_list to free
  * @return: no return
